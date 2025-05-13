@@ -8,70 +8,111 @@
 x-basics: &basics
   env_file:
     - .env
+  restart: unless-stopped
+
 services:
   firefly:
     image: fireflyiii/core:latest
-    container_name: ${FIREFLY_III_SUBDOMAIN}
     <<: *basics
+
+    environment:
+      - APP_KEY=${FIREFLY_III_APP_KEY}
+      - DB_CONNECTION=mysql
+      - DB_HOST=maria-db
+      - DB_PORT=3306
+      - DB_DATABASE=firefly
+      - DB_USERNAME=firefly
+      - DB_PASSWORD=${FIREFLY_III_PASSWORD}
+      - APP_URL=https://${FIREFLY_III_SUBDOMAIN}.${ROOT_DOMAIN}
+      - TRUSTED_PROXIES=**
+      - TZ=${TZ}
+
+    volumes:
+      - ~/volumes/firefly/upload:/var/www/html/storage/upload
+      - ~/volumes/firefly/db:/var/lib/mysql
+
     networks:
       core:
         ipv4_address: 172.20.0.50
-    restart: always
-    volumes:
-      - firefly_iii_upload:/var/www/html/storage/upload
-    ports:
-      - '8010:8080'
-    environment:
-      - DB_HOST=maria-db
-      - DB_PASSWORD=${FIREFLY_III_PASSWORD}
+      internal:
+
+    depends_on:
+      maria-db:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.firefly.rule=Host(`${FIREFLY_III_SUBDOMAIN}.${ROOT_DOMAIN}`)"
       - "traefik.http.routers.firefly.entrypoints=websecure"
       - "traefik.http.routers.firefly.middlewares=cloudflare-ipallowlist@file"
       - "traefik.http.routers.firefly.tls.certresolver=cloudflare"
-      - "traefik.http.services.firefly.loadbalancer.server.port=8010"
+      - "traefik.http.services.firefly.loadbalancer.server.port=8080"
 
   firefly-importer:
     image: fireflyiii/data-importer:latest
-    hostname: importer
-    restart: always
-    container_name: firefly-import
+    <<: *basics
+
+    environment:
+      - FIREFLY_III_URL=http://firefly:8080
+      - VANITY_URL=https://${FIREFLY_III_SUBDOMAIN}.${ROOT_DOMAIN}
+      - TZ=${TZ}
+
     networks:
       core:
         ipv4_address: 172.20.0.51
-    ports:
-      - '8110:8080'
+      internal:
+
     depends_on:
-      - firefly
-    environment:
-      - FIREFLY_III_URL=http://${FIREFLY_III_SUBDOMAIN}
-      - VANITY_URL=https://${FIREFLY_III_SUBDOMAIN}.${ROOT_DOMAIN}
+      firefly:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.firefly-import.rule=Host(`firefly-import.zephyrex.dev`)"
+      - "traefik.http.routers.firefly-import.rule=Host(`import.${FIREFLY_III_SUBDOMAIN}.${ROOT_DOMAIN}`)"
       - "traefik.http.routers.firefly-import.entrypoints=websecure"
-      - "traefik.http.routers.firefly-import.middlewares=dashboard-auth,cloudflare-ipallowlist@file"
+      - "traefik.http.routers.firefly-import.middlewares=cloudflare-ipallowlist@file"
       - "traefik.http.routers.firefly-import.tls.certresolver=cloudflare"
       - "traefik.http.services.firefly-import.loadbalancer.server.port=8080"
 
   firefly-cron:
-    #
-    # To make this work, set STATIC_CRON_TOKEN in your .env file or as an environment variable and replace REPLACEME below
-    # The STATIC_CRON_TOKEN must be *exactly* 32 characters long
-    #
-    image: alpine
+    image: alpine:latest
     container_name: firefly-cron
-    restart: always
-    command: sh -c "
-      apk add tzdata
-      && ln -s /usr/share/zoneinfo/${TZ} /etc/localtime
-      | echo \"0 3 * * * wget -qO- http://app:8080/api/v1/cron/${STATIC_CRON_TOKEN};echo\" 
-      | crontab - 
-      && crond -f -L /dev/stdout"
+    <<: *basics
+
+    environment:
+      - TZ=${TZ}
+
+    command: >
+      sh -c "
+        apk add --no-cache tzdata curl
+        && ln -snf /usr/share/zoneinfo/$${TZ} /etc/localtime
+        && echo \"0 3 * * * curl -sS http://firefly:8080/api/v1/cron/${FIREFLY_III_CRON_TOKEN}\" | crontab -
+        && crond -f -L /dev/stdout
+      "
+
     networks:
       core:
         ipv4_address: 172.20.0.52
+      internal:
+
+    depends_on:
+      firefly:
+        condition: service_healthy
+
 volumes:
-   firefly_iii_upload:
-   firefly_iii_db:
+  firefly_iii_upload:
+  firefly_iii_db:
