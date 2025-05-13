@@ -12,6 +12,7 @@ x-basics: &basics
 
 services:
   firefly:
+    container_name: firefly
     image: fireflyiii/core:latest
     <<: *basics
 
@@ -57,6 +58,7 @@ services:
       - "traefik.http.services.firefly.loadbalancer.server.port=${FIREFLY_PORT:-8080}"
 
   firefly-importer:
+    container_name: firefly-import
     image: fireflyiii/data-importer:latest
     <<: *basics
 
