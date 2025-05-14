@@ -64,7 +64,7 @@ services:
 
     environment:
       - FIREFLY_III_URL=http://firefly:8080
-      - VANITY_URL=https://${FIREFLY_III_SUBDOMAIN}.${ROOT_DOMAIN}
+      - VANITY_URL=https://${FIREFLY_SUBDOMAIN}.${ROOT_DOMAIN}
       - TZ=${TZ}
 
     networks:
