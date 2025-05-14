@@ -38,12 +38,13 @@ services:
         ipv4_address: 172.20.0.50
       internal:
 
+
     depends_on:
       maria-db:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 15s
       retries: 3
@@ -55,7 +56,7 @@ services:
       - "traefik.http.routers.firefly.entrypoints=websecure"
       - "traefik.http.routers.firefly.middlewares=cloudflare-ipallowlist@file"
       - "traefik.http.routers.firefly.tls.certresolver=cloudflare"
-      - "traefik.http.services.firefly.loadbalancer.server.port=${FIREFLY_PORT:-8080}"
+      - "traefik.http.services.firefly.loadbalancer.server.port=8080"
 
   firefly-importer:
     container_name: firefly-import
@@ -72,19 +73,14 @@ services:
         ipv4_address: 172.20.0.51
       internal:
 
+
     depends_on:
       firefly:
         condition: service_healthy
     ports:
       - "${FIREFLY_IMPORTER_PORT:-8081}:8080"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "curl",
-          "-f",
-          "http://localhost:${FIREFLY_IMPORTER_PORT}/health",
-        ]
+      test: [ "CMD", "curl", "-f", "http://localhost:${FIREFLY_IMPORTER_PORT}/health" ]
       interval: 30s
       timeout: 15s
       retries: 3
@@ -118,6 +114,7 @@ services:
       core:
         ipv4_address: 172.20.0.52
       internal:
+
 
     depends_on:
       firefly:
