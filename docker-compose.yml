@@ -26,6 +26,7 @@ services:
       - DB_PASSWORD=${FIREFLY_PASSWORD}
       - APP_URL=https://${FIREFLY_SUBDOMAIN}.${ROOT_DOMAIN}
       - TRUSTED_PROXIES=**
+      - STATIC_CRON_TOKEN=${FIREFLY_CRON_TOKEN}
       - TZ=${TZ}
 
     volumes:
@@ -38,12 +39,13 @@ services:
         ipv4_address: 172.20.0.50
       internal:
 
+
     depends_on:
       maria-db:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 15s
       retries: 3
@@ -73,20 +75,14 @@ services:
       core:
         ipv4_address: 172.20.0.51
       internal:
+    ports:
+      - ${FIREFLY_IMPORTER_PORT:-8081}:8080
 
     depends_on:
       firefly:
         condition: service_healthy
-    ports:
-      - "${FIREFLY_IMPORTER_PORT:-8081}:8080"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "curl",
-          "-f",
-          "http://localhost:${FIREFLY_IMPORTER_PORT}/health",
-        ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 15s
       retries: 3
@@ -94,13 +90,13 @@ services:
 
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.firefly-import.rule=Host(`${FIREFLY_SUBDOMAIN}-import.${ROOT_DOMAIN}`)"
-      - "traefik.http.routers.firefly-import.entrypoints=websecure"
-      - "traefik.http.routers.firefly-import.middlewares=cloudflare-ipallowlist@file"
-      - "traefik.http.routers.firefly-import.tls.certresolver=cloudflare"
-      - "traefik.http.services.firefly-import.loadbalancer.server.port=${FIREFLY_IMPORTER_PORT:-8081}"
-      - "traefik.http.routers.firefly-import.middlewares=${FIREFLY_AUTH:+firefly-auth}"
-      - "traefik.http.middlewares.firefly-auth.basicauth.users=${FIREFLY_AUTH}"
+      - "traefik.http.routers.firefly-importer.rule=Host(`${FIREFLY_SUBDOMAIN}-importer.${ROOT_DOMAIN}`)"
+      - "traefik.http.routers.firefly-importer.entrypoints=websecure"
+      - "traefik.http.routers.firefly-importer.middlewares=cloudflare-ipallowlist@file"
+      - "traefik.http.routers.firefly-importer.tls.certresolver=cloudflare"
+      - "traefik.http.services.firefly-importer.loadbalancer.server.port=8080"
+      - "traefik.http.routers.firefly-importer.middlewares=${FIREFLY_AUTH:+firefly-importer-auth}"
+      - "traefik.http.middlewares.firefly-importer-auth.basicauth.users=${FIREFLY_AUTH}"
 
   firefly-cron:
     image: alpine:latest
@@ -122,6 +118,7 @@ services:
       core:
         ipv4_address: 172.20.0.52
       internal:
+
 
     depends_on:
       firefly:
